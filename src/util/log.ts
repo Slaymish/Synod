@@ -18,8 +18,13 @@ export function subscribe(fn: Listener): () => void {
 
 function emit(level: Level, msg: string) {
   const entry: LogEntry = { ts: new Date().toISOString(), level, msg };
-  // eslint-disable-next-line no-console
-  console[level === "debug" ? "log" : level](`[synod] ${msg}`);
+  // Per Obsidian plugin guidelines, the developer console should not be
+  // noisy. Only surface warnings and errors. `info`/`debug` still reach
+  // the in-app status view through the listener fan-out below.
+  if (level === "warn" || level === "error") {
+    // eslint-disable-next-line no-console
+    console[level](`[synod] ${msg}`);
+  }
   for (const l of listeners) {
     try {
       l(entry);

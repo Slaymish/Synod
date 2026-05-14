@@ -30,8 +30,9 @@ export class Store {
 
   static async open(plugin: Plugin): Promise<Store> {
     const raw = ((await plugin.loadData()) ?? {}) as Partial<PersistShape>;
+    const settings = mergeSettings(raw.settings);
     const cache: PersistShape = {
-      settings: { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}) },
+      settings,
       data: { ...EMPTY_DATA, ...(raw.data ?? {}) },
     };
     return new Store(plugin, cache);
@@ -164,4 +165,58 @@ export class Store {
   private async persist(): Promise<void> {
     await this.plugin.saveData(this.cache);
   }
+}
+
+/** Merge persisted settings into the defaults, defending against:
+ *   - missing nested objects (older versions, partial writes),
+ *   - the legacy importers shape (`obsidianSourceFolder`/`journalDateFormat`).
+ */
+function mergeSettings(raw: Partial<SynodSettings> | undefined): SynodSettings {
+  const out: SynodSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  if (!raw) return out;
+
+  // Provider + provider-specific creds — shallow merge per nested object.
+  if (raw.provider) out.provider = raw.provider;
+  if (raw.ollama) out.ollama = { ...out.ollama, ...raw.ollama };
+  if (raw.openrouter) out.openrouter = { ...out.openrouter, ...raw.openrouter };
+  if (raw.llamaSwap) out.llamaSwap = { ...out.llamaSwap, ...raw.llamaSwap };
+
+  // Importers — handle both the new shape and the legacy flat fields.
+  if (raw.importers) {
+    const ri = raw.importers as Partial<SynodSettings["importers"]> & {
+      obsidianSourceFolder?: string;
+      journalDateFormat?: string;
+    };
+    if (ri.defaultKind) out.importers.defaultKind = ri.defaultKind;
+    if (ri.configs) {
+      if (ri.configs["obsidian-folder"]) {
+        out.importers.configs["obsidian-folder"] = {
+          ...out.importers.configs["obsidian-folder"],
+          ...ri.configs["obsidian-folder"],
+        };
+      }
+      if (ri.configs["obsidian-journal"]) {
+        out.importers.configs["obsidian-journal"] = {
+          ...out.importers.configs["obsidian-journal"],
+          ...ri.configs["obsidian-journal"],
+        };
+      }
+    }
+    // Legacy migration: the old shape stored a single shared folder + format.
+    if (ri.obsidianSourceFolder) {
+      out.importers.configs["obsidian-folder"].folder = ri.obsidianSourceFolder;
+      out.importers.configs["obsidian-journal"].folder = ri.obsidianSourceFolder;
+    }
+    if (ri.journalDateFormat) {
+      out.importers.configs["obsidian-journal"].dateFormat = ri.journalDateFormat;
+    }
+  }
+
+  if (raw.output) out.output = { ...out.output, ...raw.output };
+  if (raw.prompts) out.prompts = { ...out.prompts, ...raw.prompts };
+  if (raw.schedule) out.schedule = { ...out.schedule, ...raw.schedule };
+  if (raw.budgets) out.budgets = { ...out.budgets, ...raw.budgets };
+  if (raw.tensions) out.tensions = { ...out.tensions, ...raw.tensions };
+
+  return out;
 }

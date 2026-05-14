@@ -24,8 +24,10 @@ OpenAI-compatible endpoint (e.g. llama-swap).
 
 ## Three importers
 
-Pick from the *Import journal entries* command, or set a default in
-**Settings → Synod → Importers**:
+Pick from the *Import journal entries* command (or the *Import entries*
+button in the side panel). Each importer remembers its own folder /
+date-format settings between runs, and the modal opens on whichever
+importer you used last:
 
 | Importer            | Source                              | Use when…                          |
 |---------------------|-------------------------------------|-------------------------------------|
@@ -33,8 +35,9 @@ Pick from the *Import journal entries* command, or set a default in
 | `obsidian-folder`   | Any folder of markdown notes        | Your journal is free-form notes.    |
 | `obsidian-journal`  | Obsidian Journals / Daily Notes     | Filenames are dates (`YYYY-MM-DD`). |
 
-Imports are deduped on SHA-256 of the normalised user text, so re-running an
-import never creates phantom duplicates.
+The Rosebud picker also accepts drag-and-drop. Imports are deduped on
+SHA-256 of the normalised user text, so re-running an import never
+creates phantom duplicates.
 
 ## Editable system prompts
 
@@ -55,8 +58,7 @@ Use `{value_name}` / `{value_definition}` placeholder syntax.
 Every knob is in **Settings → Community plugins → Synod**:
 
 - **Provider**: Ollama / OpenRouter / llama-swap, with separate models for
-  the *agent* role and the *compiler* role.
-- **Importers**: default kind, source folder, journal date format.
+  the *agent* role and the *compiler* role, plus a *Test connection* button.
 - **Output**: vault root folder, mirror entries / values to vault toggles.
 - **Prompts**: folder location, "re-create defaults" button.
 - **Schedule**: bulletin interval (hours), run-on-startup, minimum entries.

@@ -102,3 +102,23 @@
   margin-top: 4px;
 }
 .synod-definition-input { width: 100%; }
+
+.synod-import-dropzone {
+  border: 2px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 8px;
+  text-align: center;
+  color: var(--text-muted);
+  cursor: copy;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.synod-import-dropzone.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+.synod-import-dropstatus {
+  margin-top: 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}

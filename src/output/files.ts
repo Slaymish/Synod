@@ -34,7 +34,9 @@ async function writeFile(app: App, path: string, body: string, overwrite: boolea
   const norm = normalizePath(path);
   const existing = app.vault.getAbstractFileByPath(norm);
   if (existing instanceof TFile) {
-    if (overwrite) await app.vault.modify(existing, body);
+    // `process` modifies atomically, avoiding races with other plugins
+    // editing the same file (per Obsidian plugin guidelines).
+    if (overwrite) await app.vault.process(existing, () => body);
     return;
   }
   await app.vault.create(norm, body);

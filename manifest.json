@@ -2,7 +2,7 @@
   "id": "synod",
   "name": "Synod",
   "version": "0.1.0",
-  "minAppVersion": "1.5.0",
+  "minAppVersion": "1.6.6",
   "description": "Run a council of LLM value agents over your journal to surface decisions you have not made. Local-first via Ollama, OpenRouter, or any OpenAI-compatible endpoint.",
   "author": "Hamish",
   "isDesktopOnly": true

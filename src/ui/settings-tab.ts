@@ -8,8 +8,10 @@
 
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
+import { getLlm } from "../llm";
 import type SynodPlugin from "../main";
-import type { ImporterKind, Provider } from "../settings";
+import { agentModelFor, type Provider } from "../settings";
+import { FolderSuggest } from "./folder-suggest";
 
 export class SynodSettingsTab extends PluginSettingTab {
   private plugin: SynodPlugin;
@@ -70,31 +72,38 @@ export class SynodSettingsTab extends PluginSettingTab {
       });
     }
 
-    // ── Importers ────────────────────────────────────────────────────────
-    new Setting(containerEl).setName("Importers").setHeading();
-    new Setting(containerEl)
-      .setName("Default importer")
-      .addDropdown((dd) => {
-        dd.addOption("rosebud", "Rosebud");
-        dd.addOption("obsidian-folder", "Obsidian folder");
-        dd.addOption("obsidian-journal", "Obsidian journal");
-        dd.setValue(s.importers.defaultKind).onChange(async (v) => {
-          await this.plugin.store.updateSettings({
-            importers: { ...s.importers, defaultKind: v as ImporterKind },
+    // ── Test connection ───────────────────────────────────────────────────
+    const testSetting = new Setting(containerEl)
+      .setName("Test connection")
+      .setDesc("Verify that the configured provider, URL, and agent model respond.");
+    testSetting.addButton((b) =>
+      b.setButtonText("Test connection").onClick(async () => {
+        b.setDisabled(true).setButtonText("Testing…");
+        testSetting.setDesc("Contacting model…");
+        try {
+          const settings = this.plugin.store.settings;
+          const model = agentModelFor(settings);
+          const llm = getLlm(settings, "agent");
+          const reply = await llm("You are a connectivity probe.", "Reply with the single word OK.", {
+            temperature: 0,
           });
-        });
-      });
-
-    this.textSetting(containerEl, "Source folder", "Vault folder used by the Obsidian importers.", s.importers.obsidianSourceFolder, async (v) => {
-      await this.plugin.store.updateSettings({ importers: { ...s.importers, obsidianSourceFolder: v } });
-    });
-    this.textSetting(containerEl, "Journal date format", "Tokens: YYYY, MM, DD.", s.importers.journalDateFormat, async (v) => {
-      await this.plugin.store.updateSettings({ importers: { ...s.importers, journalDateFormat: v } });
-    });
+          const trimmed = (reply ?? "").trim();
+          const preview = trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+          testSetting.setDesc(`✓ Connected to ${settings.provider} (${model}). Reply: ${preview || "(empty)"}`);
+          new Notice("Connection succeeded.");
+        } catch (e) {
+          const msg = (e as Error).message;
+          testSetting.setDesc(`✗ Connection failed: ${msg}`);
+          new Notice(`Connection failed: ${msg}`);
+        } finally {
+          b.setDisabled(false).setButtonText("Test connection");
+        }
+      }),
+    );
 
     // ── Output ───────────────────────────────────────────────────────────
     new Setting(containerEl).setName("Output").setHeading();
-    this.textSetting(containerEl, "Vault root folder", "Where bulletins, values, and (optionally) entries are written.", s.output.rootFolder, async (v) => {
+    this.folderSetting(containerEl, "Vault root folder", "Where bulletins, values, and (optionally) entries are written.", s.output.rootFolder, async (v) => {
       await this.plugin.store.updateSettings({ output: { ...s.output, rootFolder: v } });
     });
     this.toggleSetting(containerEl, "Write entry files to vault", "Off by default. Enable only for Rosebud imports — your other source notes already exist in the vault.", s.output.writeEntryFiles, async (v) => {
@@ -106,7 +115,7 @@ export class SynodSettingsTab extends PluginSettingTab {
 
     // ── Prompts ──────────────────────────────────────────────────────────
     new Setting(containerEl).setName("Prompts").setHeading();
-    this.textSetting(containerEl, "Prompt folder", "Vault folder containing editable agent system prompts.", s.prompts.folder, async (v) => {
+    this.folderSetting(containerEl, "Prompt folder", "Vault folder containing editable agent system prompts.", s.prompts.folder, async (v) => {
       await this.plugin.store.updateSettings({ prompts: { ...s.prompts, folder: v } });
       await this.plugin.prompts.ensureDefaults();
     });
@@ -184,6 +193,12 @@ export class SynodSettingsTab extends PluginSettingTab {
   private textSetting(c: HTMLElement, name: string, desc: string, val: string, save: (v: string) => Promise<void>) {
     new Setting(c).setName(name).setDesc(desc).addText((t) => {
       t.setValue(val).onChange(async (v) => save(v));
+    });
+  }
+  private folderSetting(c: HTMLElement, name: string, desc: string, val: string, save: (v: string) => Promise<void>) {
+    new Setting(c).setName(name).setDesc(desc).addText((t) => {
+      t.setValue(val).onChange(async (v) => save(v));
+      new FolderSuggest(this.app, t.inputEl);
     });
   }
   private numberSetting(c: HTMLElement, name: string, desc: string, val: number, save: (v: number) => Promise<void>) {

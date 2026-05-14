@@ -28,11 +28,14 @@ export interface SynodSettings {
 
   // ── Importers ──
   importers: {
+    /** Last-used importer kind. The import modal opens on this. */
     defaultKind: ImporterKind;
-    /** Folder inside the vault to scan when importer kind == obsidian-folder/journal */
-    obsidianSourceFolder: string;
-    /** Filename pattern for journals that follow the Obsidian Journals plugin convention */
-    journalDateFormat: string; // e.g. YYYY-MM-DD
+    /** Per-kind remembered configuration. Switching kinds in the import
+     *  modal never overwrites another kind's saved values. */
+    configs: {
+      "obsidian-folder": { folder: string };
+      "obsidian-journal": { folder: string; dateFormat: string };
+    };
   };
 
   // ── Output (in-vault) ──
@@ -94,8 +97,10 @@ export const DEFAULT_SETTINGS: SynodSettings = {
 
   importers: {
     defaultKind: "obsidian-folder",
-    obsidianSourceFolder: "Journal",
-    journalDateFormat: "YYYY-MM-DD",
+    configs: {
+      "obsidian-folder": { folder: "Journal" },
+      "obsidian-journal": { folder: "Journal", dateFormat: "YYYY-MM-DD" },
+    },
   },
 
   output: {
