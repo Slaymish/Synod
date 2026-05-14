@@ -1,8 +1,9 @@
-/* Status view — the answer to "status and current progress".
+/* Status view — the answer to "what is Synod doing right now?".
  *
  * Shows live pipeline phase, progress bar, last-run timestamp, recent log
  * lines, plus the four primary actions: Import, Discover values, Run cycle,
- * Open latest bulletin.
+ * Open latest bulletin. The counts panel auto-refreshes whenever the store's
+ * underlying data changes (no need to poke another button).
  */
 
 import { ItemView, Notice, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
@@ -20,6 +21,7 @@ export class SynodStatusView extends ItemView {
   private store: Store;
   private prompts: PromptStore;
   private unsubStatus: (() => void) | null = null;
+  private unsubData: (() => void) | null = null;
   private unsubLog: (() => void) | null = null;
   private logBuffer: LogEntry[] = [];
 
@@ -44,6 +46,10 @@ export class SynodStatusView extends ItemView {
   async onOpen(): Promise<void> {
     this.render();
     this.unsubStatus = this.store.onStatus(() => this.render());
+    // Re-render when entries / values / packets / last-run change so the
+    // counts panel updates immediately after an import or value confirm,
+    // not just after the next button press.
+    this.unsubData = this.store.onDataChange(() => this.render());
     this.unsubLog = subscribe((entry) => {
       this.logBuffer.push(entry);
       if (this.logBuffer.length > 50) this.logBuffer.shift();
@@ -53,6 +59,7 @@ export class SynodStatusView extends ItemView {
 
   async onClose(): Promise<void> {
     this.unsubStatus?.();
+    this.unsubData?.();
     this.unsubLog?.();
   }
 
@@ -62,6 +69,48 @@ export class SynodStatusView extends ItemView {
     root.addClass("synod-view");
 
     root.createDiv({ cls: "synod-title", text: "Synod" });
+
+    const entryCount = this.store.entries.length;
+    const valueCount = this.store.activeValues().length;
+    const lastBulletin = this.store.lastRunFor("bulletin");
+
+    // ── First-run guidance ──
+    // Show a short, friendly checklist if the user has not yet completed
+    // the three-step setup. Disappears once a bulletin has been written.
+    if (!lastBulletin) {
+      const guide = root.createDiv({ cls: "synod-guide" });
+      guide.createDiv({
+        cls: "synod-guide-title",
+        text: "Get started in three steps",
+      });
+      const steps = guide.createEl("ol", { cls: "synod-guide-steps" });
+      const step1 = steps.createEl("li");
+      step1.setText(
+        entryCount > 0
+          ? `Imported ${entryCount} journal ${entryCount === 1 ? "entry" : "entries"}.`
+          : "Import your journal — Rosebud export, an Obsidian folder, or daily notes.",
+      );
+      if (entryCount > 0) step1.addClass("is-done");
+
+      const step2 = steps.createEl("li");
+      step2.setText(
+        valueCount > 0
+          ? `Confirmed ${valueCount} active value${valueCount === 1 ? "" : "s"}.`
+          : "Discover the values that already show up in what you write, then keep the ones that ring true.",
+      );
+      if (valueCount > 0) step2.addClass("is-done");
+
+      const step3 = steps.createEl("li");
+      step3.setText(
+        "Run a bulletin. Each value gets its own agent, a compiler surfaces the tensions between them, and the result lands in your vault.",
+      );
+
+      guide.createEl("small", {
+        cls: "synod-guide-hint",
+        text:
+          "Synod talks to LLMs through Ollama, OpenRouter, or any OpenAI-compatible endpoint — pick yours under Settings → Community plugins → Synod.",
+      });
+    }
 
     // ── Status block ──
     const status = this.store.status;
@@ -94,25 +143,33 @@ export class SynodStatusView extends ItemView {
 
     // ── Counts block ──
     const counts = root.createDiv({ cls: "synod-counts" });
-    counts.createEl("div", { text: `Entries: ${this.store.entries.length}` });
-    counts.createEl("div", { text: `Active values: ${this.store.activeValues().length}` });
-    const last = this.store.lastRunFor("bulletin");
+    counts.createEl("div", { text: `Entries: ${entryCount}` });
+    counts.createEl("div", { text: `Active values: ${valueCount}` });
     counts.createEl("div", {
-      text: `Last bulletin: ${last ? new Date(last).toLocaleString() : "never"}`,
+      text: `Last bulletin: ${lastBulletin ? new Date(lastBulletin).toLocaleString() : "never"}`,
     });
 
     // ── Actions ──
     const actions = root.createDiv({ cls: "synod-actions" });
 
-    const importBtn = actions.createEl("button", { text: "Import entries" });
+    const importBtn = actions.createEl("button", { text: "1. Import journal entries" });
+    importBtn.setAttr("title", "Bring your journal into Synod from Rosebud, an Obsidian folder, or daily notes.");
     importBtn.onclick = () => new ImportModal(this.app, this.store).open();
 
-    const discoverBtn = actions.createEl("button", { text: "Discover values" });
+    const discoverBtn = actions.createEl("button", { text: "2. Discover values" });
+    discoverBtn.setAttr(
+      "title",
+      "Read your entries, propose the values that already show up in your writing, and let you keep the ones that ring true.",
+    );
     discoverBtn.onclick = async () => {
+      if (!this.store.entries.length) {
+        new Notice("Import some journal entries first.");
+        return;
+      }
       try {
         const candidates = await discoverValues(this.store, this.prompts);
         if (!candidates.length) {
-          new Notice("No candidate values discovered. Add more entries and try again.");
+          new Notice("No candidate values discovered. Import more entries and try again.");
           return;
         }
         new CandidateValueModal(this.app, this.store, candidates).open();
@@ -121,10 +178,14 @@ export class SynodStatusView extends ItemView {
       }
     };
 
-    const runBtn = actions.createEl("button", { text: "Run bulletin cycle" });
+    const runBtn = actions.createEl("button", { text: "3. Run bulletin cycle" });
+    runBtn.setAttr(
+      "title",
+      "Each active value gets its own agent. The compiler surfaces tensions between them and writes a bulletin to your vault.",
+    );
     runBtn.onclick = async () => {
       if (!this.store.activeValues().length) {
-        new Notice("No active values. Discover and confirm at least one value first.");
+        new Notice("Confirm at least one value first (step 2).");
         return;
       }
       try {
@@ -140,7 +201,7 @@ export class SynodStatusView extends ItemView {
     openBtn.onclick = async () => {
       const latest = this.store.latestPacket();
       if (!latest) {
-        new Notice("No bulletins yet.");
+        new Notice("No bulletins yet. Run a cycle first.");
         return;
       }
       const path = normalizePath(

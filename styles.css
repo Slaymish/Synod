@@ -122,3 +122,40 @@
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
 }
+
+.synod-guide {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt, var(--background-secondary));
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.synod-guide-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.synod-guide-steps {
+  margin: 0 0 6px 1.1em;
+  padding: 0;
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+.synod-guide-steps li {
+  margin-bottom: 4px;
+}
+.synod-guide-steps li.is-done {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.synod-guide-hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82em;
+  margin-top: 4px;
+}
+
+.synod-modal-intro {
+  font-size: 0.92em;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}

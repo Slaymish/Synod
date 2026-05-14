@@ -57,13 +57,19 @@ export class ImportModal extends Modal {
     contentEl.empty();
     this.setTitle("Import journal entries");
 
+    contentEl.createEl("p", {
+      cls: "synod-modal-intro",
+      text:
+        "Synod reads only the entries you import here. Re-running the same import is safe — duplicates are detected by content hash.",
+    });
+
     new Setting(contentEl)
-      .setName("Importer")
-      .setDesc("Choose the source format")
+      .setName("Source")
+      .setDesc("Where your journal lives.")
       .addDropdown((dd) => {
-        dd.addOption("rosebud", "Rosebud (.md or .zip file)");
-        dd.addOption("obsidian-folder", "Obsidian folder (any markdown notes)");
-        dd.addOption("obsidian-journal", "Obsidian Journals plugin format");
+        dd.addOption("rosebud", "Rosebud export (.md or .zip)");
+        dd.addOption("obsidian-folder", "Folder of markdown notes in this vault");
+        dd.addOption("obsidian-journal", "Obsidian daily / journal notes (date-named files)");
         dd.setValue(this.kind);
         dd.onChange((v) => {
           this.kind = v as ImporterKind;
@@ -109,14 +115,18 @@ export class ImportModal extends Modal {
 
   private renderRosebud(host: HTMLElement): void {
     this.droppedFile = null;
-    host.createEl("p", { text: "Choose a Rosebud .md or .zip export from disk:" });
+    host.createEl("p", {
+      cls: "synod-modal-intro",
+      text:
+        "Export your Rosebud journal as a .md or .zip file, then choose it below. Both single-file and full-archive exports work.",
+    });
     this.fileInputEl = host.createEl("input", {
       type: "file",
       attr: { accept: ".md,.zip" },
     });
 
     const dropZone = host.createDiv({ cls: "synod-import-dropzone" });
-    dropZone.setText("…or drag and drop a .md or .zip file here");
+    dropZone.setText("…or drag and drop the .md or .zip file here");
     const dropStatus = host.createDiv({ cls: "synod-import-dropstatus" });
 
     const refreshStatus = () => {
@@ -162,27 +172,40 @@ export class ImportModal extends Modal {
   }
 
   private renderObsidianFolder(host: HTMLElement): void {
+    host.createEl("p", {
+      cls: "synod-modal-intro",
+      text:
+        "Every markdown note inside the folder (including subfolders) is treated as one journal entry. Use this if your journal is just free-form notes.",
+    });
     new Setting(host)
       .setName("Vault folder")
-      .setDesc("Folder inside this vault containing your journal notes")
+      .setDesc("e.g. Journal")
       .addText((t) => {
+        t.setPlaceholder("Journal");
         t.setValue(this.folderState.folder).onChange((v) => (this.folderState.folder = v));
         new FolderSuggest(this.app, t.inputEl);
       });
   }
 
   private renderObsidianJournal(host: HTMLElement): void {
+    host.createEl("p", {
+      cls: "synod-modal-intro",
+      text:
+        "For daily notes / Journals plugin layouts where the filename encodes the date (e.g. 2025-04-13.md). Notes whose filenames don't match are skipped.",
+    });
     new Setting(host)
       .setName("Vault folder")
-      .setDesc("Folder inside this vault containing your journal notes")
+      .setDesc("e.g. Journal/Daily")
       .addText((t) => {
+        t.setPlaceholder("Journal");
         t.setValue(this.journalState.folder).onChange((v) => (this.journalState.folder = v));
         new FolderSuggest(this.app, t.inputEl);
       });
     new Setting(host)
       .setName("Date format in filename")
-      .setDesc("Tokens: YYYY, MM, DD")
+      .setDesc("Use YYYY, MM, DD. Default: YYYY-MM-DD")
       .addText((t) => {
+        t.setPlaceholder("YYYY-MM-DD");
         t.setValue(this.journalState.dateFormat).onChange((v) => (this.journalState.dateFormat = v));
       });
   }

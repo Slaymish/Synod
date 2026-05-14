@@ -17,11 +17,13 @@ interface PersistShape {
 }
 
 type StatusListener = (s: PipelineStatus) => void;
+type DataListener = () => void;
 
 export class Store {
   private plugin: Plugin;
   private cache: PersistShape;
   private statusListeners = new Set<StatusListener>();
+  private dataListeners = new Set<DataListener>();
 
   private constructor(plugin: Plugin, cache: PersistShape) {
     this.plugin = plugin;
@@ -64,7 +66,10 @@ export class Store {
         added++;
       }
     }
-    if (added) await this.persist();
+    if (added) {
+      await this.persist();
+      this.notifyData();
+    }
     return { added, duplicates };
   }
 
@@ -94,6 +99,7 @@ export class Store {
   async upsertValue(v: Value): Promise<void> {
     this.cache.data.values[v.id] = v;
     await this.persist();
+    this.notifyData();
   }
 
   async setValueActive(id: string, active: boolean): Promise<void> {
@@ -101,11 +107,13 @@ export class Store {
     if (!v) return;
     v.active = active;
     await this.persist();
+    this.notifyData();
   }
 
   async deleteValue(id: string): Promise<void> {
     delete this.cache.data.values[id];
     await this.persist();
+    this.notifyData();
   }
 
   // ── Reports / packets ──
@@ -119,6 +127,7 @@ export class Store {
   async savePacket(p: StoredDecisionPacket): Promise<void> {
     this.cache.data.packets.push(p);
     await this.persist();
+    this.notifyData();
   }
 
   get packets(): StoredDecisionPacket[] {
@@ -137,6 +146,7 @@ export class Store {
   async markRun(jobId: string): Promise<void> {
     this.cache.data.lastRun[jobId] = new Date().toISOString();
     await this.persist();
+    this.notifyData();
   }
 
   // ── Status (in-memory + persisted snapshot for status view restore) ──
@@ -161,9 +171,27 @@ export class Store {
     return () => this.statusListeners.delete(fn);
   }
 
+  /** Fires whenever entries, values, packets, or lastRun bookkeeping change.
+   *  The status view uses this to refresh the counts panel without waiting
+   *  for the next phase event. */
+  onDataChange(fn: DataListener): () => void {
+    this.dataListeners.add(fn);
+    return () => this.dataListeners.delete(fn);
+  }
+
   // ── Internals ──
   private async persist(): Promise<void> {
     await this.plugin.saveData(this.cache);
+  }
+
+  private notifyData(): void {
+    for (const l of this.dataListeners) {
+      try {
+        l();
+      } catch {
+        /* noop */
+      }
+    }
   }
 }
 

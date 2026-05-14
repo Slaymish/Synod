@@ -1,9 +1,9 @@
 {
   "id": "synod",
   "name": "Synod",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.7.2",
-  "description": "Run a council of LLM value agents over your journal to surface decisions you have not made. Local-first via Ollama, OpenRouter, or any OpenAI-compatible endpoint.",
+  "description": "A council of LLM agents reads your journal, surfaces the tensions you haven't resolved, and refuses to suggest a compromise. Local-first via Ollama, OpenRouter, or any OpenAI-compatible endpoint.",
   "author": "Hamish",
   "authorUrl": "https://github.com/Slaymish",
   "isDesktopOnly": true

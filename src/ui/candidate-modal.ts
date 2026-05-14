@@ -28,11 +28,12 @@ export class CandidateValueModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    this.setTitle("Confirm values");
+    this.setTitle("Confirm your values");
     contentEl.createEl("p", {
+      cls: "synod-modal-intro",
       text:
-        "These were extracted from your recent entries. Tick the ones you want to confirm. " +
-        "Rewrite the definition in your own words for sharper agent reasoning.",
+        "These showed up in what you've been writing. Tick the ones that ring true — Synod will give each its own agent. " +
+        "Rewriting the definition in your own words makes that agent reason much more like you. You can re-run discovery any time.",
     });
 
     for (const c of this.candidates) {

@@ -1,35 +1,74 @@
 # Synod
 
-Repository: <https://github.com/Slaymish/Synod>
+**A council of LLM agents that read your journal, surface the tensions you haven't resolved, and refuse to suggest a compromise.**
 
-A council of LLM "value agents" reads your journal, surfaces tensions you
-haven't resolved, and never suggests compromises. Runs entirely inside
-Obsidian; LLMs are reached via local Ollama, OpenRouter, or any
-OpenAI-compatible endpoint (e.g. llama-swap).
+Most journaling tools nudge you toward calm. Synod does the opposite. It treats each of your stated values — *honesty*, *family*, *ambition*, whatever they happen to be — as its own agent, lets each one read the same period of journal entries in isolation, then has a compiler look across their reports for the places where they pull in different directions. The output is a short bulletin in your vault: where you contradicted yourself, what each value would have you do, and what's left unresolved.
 
-## What it does
+It runs entirely inside Obsidian. The default backend is Ollama on your own machine, so by default nothing leaves your laptop. You can swap to OpenRouter or any OpenAI-compatible endpoint later if you want.
+
+---
+
+## Why this exists
+
+Daily-journal LLMs tend to validate. They're great at "great work today" and terrible at "you keep saying you want to write more, and you keep saying yes to projects that prevent it."
+
+Synod is a small bet that the more useful pattern is the opposite — quiet agents that hold a single value each, and a compiler whose only job is to point out where those values disagree. No therapy. No compromises. Just the friction.
+
+If that sounds like something you'd want a longer answer to, the bulletins do the answering.
+
+---
+
+## What you actually get
+
+- **Three importers** — pull from a Rosebud export, a folder of free-form notes, or your daily-notes / Journals plugin.
+- **Value discovery** — a one-shot extractor proposes the values that already show up in what you write. You confirm the ones that ring true and rewrite the definitions in your own words.
+- **Per-value agents** — every confirmed value gets its own agent run with its own system prompt, never seeing the others' output.
+- **A compiler** that runs three independent passes (evidentiary gate → tension finder → tension validator) before anything is written to disk.
+- **Bulletins in your vault** — plain markdown, one per period, sitting alongside your other notes. Backlinkable, gitable, yours.
+- **A status panel** — live phase, progress bar, recent log, four big buttons. Nothing hidden in a command palette.
+- **Editable prompts** — every agent's system prompt is a markdown file in your vault. Change them; the next run picks it up.
 
 ```diagram
 ╭─────────────────────╮     ╭──────────────────╮     ╭────────────────╮
 │ Import journal      │────▶│ Per-value agent  │────▶│ Compiler       │
-│ (Rosebud / vault    │     │ (parallel, fully │     │ (3 passes)     │
-│ folder / journals)  │     │  isolated)       │     │                │
+│ (Rosebud / folder / │     │ (parallel, fully │     │ (3 passes)     │
+│  daily notes)       │     │  isolated)       │     │                │
 ╰─────────────────────╯     ╰──────────────────╯     ╰────────┬───────╯
                                                               │
                                                               ▼
                                               ╭──────────────────────╮
                                               │ Bulletin (.md in     │
-                                              │ vault) + side panel  │
+                                              │ vault) + side-panel  │
                                               │ status               │
                                               ╰──────────────────────╯
 ```
 
-## Three importers
+---
 
-Pick from the *Import journal entries* command (or the *Import entries*
-button in the side panel). Each importer remembers its own folder /
-date-format settings between runs, and the modal opens on whichever
-importer you used last:
+## Three steps to your first bulletin
+
+1. Open the Synod side panel from the ribbon icon.
+2. **Import journal entries** → pick your source. Re-running an import is safe; duplicates are detected by content hash.
+3. **Discover values** → tick the ones that ring true, rewrite the wording, **Confirm**.
+4. **Run bulletin cycle** → opens the result in your vault when it's done.
+
+After that, scheduling takes over (defaults to weekly; configurable).
+
+---
+
+## Privacy
+
+Synod does not phone home and does not bundle remote code.
+
+- The default backend is Ollama on `localhost`. Nothing leaves your machine.
+- If you choose OpenRouter or llama-swap, the only outbound traffic is to the endpoint you configure.
+- Your journal text, value definitions, and bulletins live inside this vault — structured records in `data.json`, human-readable bulletins as plain markdown.
+
+---
+
+## Importers
+
+Pick yours from the *Import journal entries* command (or the **Import** button in the side panel). Each importer remembers its own folder and date-format settings, and the modal opens on whichever you used last.
 
 | Importer            | Source                              | Use when…                          |
 |---------------------|-------------------------------------|-------------------------------------|
@@ -37,53 +76,37 @@ importer you used last:
 | `obsidian-folder`   | Any folder of markdown notes        | Your journal is free-form notes.    |
 | `obsidian-journal`  | Obsidian Journals / Daily Notes     | Filenames are dates (`YYYY-MM-DD`). |
 
-The Rosebud picker also accepts drag-and-drop. Imports are deduped on
-SHA-256 of the normalised user text, so re-running an import never
-creates phantom duplicates.
+The Rosebud picker also accepts drag-and-drop. Imports are deduped on the SHA-256 of the normalised user text, so re-running is always safe.
 
-## Editable system prompts
+---
 
-On first load the plugin writes default prompt files into
-`<vault>/Synod/_prompts/` (path configurable):
+## Editable prompts
+
+On first load, Synod writes default prompt files into `<vault>/Synod/_prompts/` (path configurable):
 
 - `value-agent.md` — per-value agent system prompt
-- `compiler-finder.md` — Pass 1 tension finder
-- `compiler-validator.md` — Pass 2 tension validator
-- `compiler-report-validator.md` — Pass 0 evidentiary gate
+- `compiler-finder.md` — Pass 1, the tension finder
+- `compiler-validator.md` — Pass 2, the tension validator
+- `compiler-report-validator.md` — Pass 0, the evidentiary gate
 - `schwartz-extractor.md` — value-discovery prompt
 
-Edit them like any markdown note. The next pipeline run reads the changes.
-Use `{value_name}` / `{value_definition}` placeholder syntax.
+Edit them like any other markdown note. The next run reads the changes. Use `{value_name}` / `{value_definition}` placeholders.
 
-## Settings
+---
 
-Every knob is in **Settings → Community plugins → Synod**:
+## Settings, in one place
 
-- **Provider**: Ollama / OpenRouter / llama-swap, with separate models for
-  the *agent* role and the *compiler* role, plus a *Test connection* button.
-- **Output**: vault root folder, mirror entries / values to vault toggles.
-- **Prompts**: folder location, "re-create defaults" button.
-- **Schedule**: bulletin interval (hours), run-on-startup, minimum entries.
-- **Prompt budgets**: char-per-call ceilings for extractor and value agents.
-- **Tensions**: severity threshold, escalation cooldown.
-- **Active values**: list with Active toggle and Delete.
+Everything sits under **Settings → Community plugins → Synod**:
 
-## Status & progress
+- **Provider** — Ollama / OpenRouter / llama-swap, with separate models for the *agent* and *compiler* roles, plus a *Test connection* button.
+- **Output** — vault root folder, optional value-note and entry-note mirroring.
+- **Prompts** — folder location and a *Restore defaults* button.
+- **Schedule** — bulletin interval (hours), run-on-startup toggle, minimum-entries floor.
+- **Prompt budgets** — character ceilings for the extractor and value-agent calls.
+- **Tensions** — severity threshold and escalation cooldown.
+- **Active values** — toggle each value on/off or delete it.
 
-Open the side panel via the ribbon icon (or *Synod: Open status view*).
-The view shows the live phase
-(`ingesting → extracting → agents → compiling → writing → done`),
-a progress bar, last-run timestamp, counts, and a tail of the log.
-
-## Privacy & network
-
-- Default backend is Ollama on `localhost`. Nothing leaves your machine.
-- OpenRouter / llama-swap modes only send data to the endpoint you
-  configure in settings. The plugin makes no other network calls.
-- All journal text, value definitions, and reports are stored locally:
-  - structured records in the plugin's `data.json`,
-  - human-readable bulletins / value notes inside your vault.
-- No telemetry. No background uploads. No bundled remote code.
+---
 
 ## Build from source
 
@@ -101,22 +124,19 @@ ln -s "$(pwd)" "/path/to/Vault/.obsidian/plugins/synod"
 
 Then in Obsidian: **Settings → Community plugins → enable Synod**.
 
-## Architecture notes
+---
 
-- **Storage**: JSON via `Plugin.loadData()/saveData()`. No SQLite, no
-  vector DB. Entries fit in context for typical journal sizes; if/when
-  they don't, plug a vector store into `agents/value-agent.ts`.
-- **Isolation contract**: `runValueAgent()` takes only one value's
-  `(id, name, definition)` plus the shared corpus. The Compiler is the
-  only module that sees all reports; its output is never fed back into
-  the agents.
-- **LLM single-flight**: `llm/index.ts` funnels generation through one
-  Promise so single-GPU backends don't trample each other when value
-  agents fan out in parallel. Hosted backends can lift this gate.
-- **Prompt budgeting**: char-based proxy for tokens. Long entries are
-  split into labelled `[date — part k/N]` blocks across LLM calls — never
-  silently truncated.
+## Architecture, in a paragraph each
+
+- **Storage**: JSON via `Plugin.loadData() / saveData()`. No SQLite, no vector DB. Entries fit in context for typical journal sizes; if/when they don't, plug a vector store into `agents/value-agent.ts`.
+- **Isolation contract**: `runValueAgent()` takes only one value's `(id, name, definition)` plus the shared corpus. The compiler is the only module that ever sees all reports; its output is never fed back into the agents.
+- **LLM single-flight**: `llm/index.ts` funnels generation through one Promise so single-GPU backends don't trample each other when value agents fan out. Hosted backends can lift this gate.
+- **Prompt budgeting**: char-based proxy for tokens. Long entries are split into labelled `[date — part k/N]` blocks across LLM calls — never silently truncated.
+
+---
 
 ## License
 
 MIT — see `LICENSE`.
+
+Repository: <https://github.com/Slaymish/Synod> · Issues and PRs welcome.
