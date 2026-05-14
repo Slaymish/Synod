@@ -101,23 +101,6 @@ ln -s "$(pwd)" "/path/to/Vault/.obsidian/plugins/synod"
 
 Then in Obsidian: **Settings → Community plugins → enable Synod**.
 
-## Releasing a new version
-
-1. Bump `version` in `manifest.json` (SemVer).
-2. Add an entry to `versions.json` mapping the new plugin version to the
-   minimum compatible Obsidian version.
-3. Commit and push.
-4. Create and push a tag whose name exactly matches the version
-   (no leading `v`):
-   ```bash
-   git tag -a 0.2.0 -m "0.2.0"
-   git push origin 0.2.0
-   ```
-5. The GitHub Actions workflow at `.github/workflows/release.yml` builds
-   the plugin, runs tests, and publishes a draft release with
-   `main.js`, `manifest.json`, and `styles.css` attached.
-6. Edit the draft release with notes, then publish.
-
 ## Architecture notes
 
 - **Storage**: JSON via `Plugin.loadData()/saveData()`. No SQLite, no
