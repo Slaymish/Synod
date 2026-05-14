@@ -78,7 +78,9 @@ export default class SynodPlugin extends Plugin {
     this.rescheduleBulletin();
     if (this.store.settings.schedule.runOnStartup) {
       // Defer so the workspace is ready and the status view can render the run.
-      window.setTimeout(() => this.maybeRunIfDue(), 5_000);
+      window.setTimeout(() => {
+        void this.maybeRunIfDue();
+      }, 5_000);
     }
 
     log.info("Synod plugin loaded");
@@ -98,7 +100,7 @@ export default class SynodPlugin extends Plugin {
       leaf = this.app.workspace.getRightLeaf(false);
       if (leaf) await leaf.setViewState({ type: SYNOD_VIEW_TYPE, active: true });
     }
-    if (leaf) this.app.workspace.revealLeaf(leaf);
+    if (leaf) await this.app.workspace.revealLeaf(leaf);
   }
 
   /** Re-arm the periodic bulletin job. Safe to call from settings-tab edits. */
@@ -112,7 +114,9 @@ export default class SynodPlugin extends Plugin {
     // Check every 30 minutes; the job runs only if `hours` have elapsed
     // since the last successful bulletin.
     const interval = 30 * 60 * 1000;
-    this.scheduleHandle = window.setInterval(() => this.maybeRunIfDue(), interval);
+    this.scheduleHandle = window.setInterval(() => {
+      void this.maybeRunIfDue();
+    }, interval);
     this.registerInterval(this.scheduleHandle);
   }
 

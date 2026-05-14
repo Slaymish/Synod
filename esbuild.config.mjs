@@ -1,6 +1,9 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from "builtin-modules";
+import { builtinModules } from "module";
+
+// Mark all Node built-ins as external (both bare and `node:`-prefixed forms).
+const builtins = [...builtinModules, ...builtinModules.map((m) => `node:${m}`)];
 
 const banner = `/* Synod plugin — auto-generated bundle. Do not edit. */`;
 

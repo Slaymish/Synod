@@ -172,7 +172,7 @@ export class Store {
  *   - the legacy importers shape (`obsidianSourceFolder`/`journalDateFormat`).
  */
 function mergeSettings(raw: Partial<SynodSettings> | undefined): SynodSettings {
-  const out: SynodSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  const out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as SynodSettings;
   if (!raw) return out;
 
   // Provider + provider-specific creds — shallow merge per nested object.

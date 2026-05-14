@@ -275,5 +275,7 @@ export class PromptStore {
 /** Substitute `{name}` placeholders. Unresolved placeholders are left intact
  *  so prompt-edit mistakes are obvious in the bundle output. */
 export function fill(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  return template.replace(/\{(\w+)\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(vars, k) ? vars[k] : m,
+  );
 }

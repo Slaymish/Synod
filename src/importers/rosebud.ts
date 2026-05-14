@@ -27,14 +27,14 @@ import type { RawEntry } from "../ingestion/types";
 const NEW_HEADER_RE = /^#\s+.*Rosebud/im;
 const H2_TITLE_RE = /^##\s+(.+)$/m;
 const H3_DATE_RE = /^###\s+(.+)$/m;
-const SECTION_RE = /^####\s+(.+?)\s*\n([\s\S]*?)(?=^####\s|\Z)/gm;
+const SECTION_RE = /^####\s+(.+?)\s*\n([\s\S]*?)(?=^####\s|(?![\s\S]))/gm;
 const ORDINAL_RE = /(\d+)(st|nd|rd|th)\b/gi;
 const DAY_OF_WEEK_RE = /^[A-Za-z]+,\s*/;
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u{10000}-\u{10FFFF}]+\s*/gu;
 
 const FRONTMATTER_RE = /^---\s*\ndate:\s*(.+?)\s*\n---/m;
-const ROSEBUD_TURN_RE = /\*\*Rosebud\*\*:\s*([\s\S]*?)(?=\n\*\*|\n---|\Z)/g;
-const USER_TURN_RE = /\*\*Me\*\*:\s*([\s\S]*?)(?=\n\*\*|\n---|\Z)/g;
+const ROSEBUD_TURN_RE = /\*\*Rosebud\*\*:\s*([\s\S]*?)(?=\n\*\*|\n---|(?![\s\S]))/g;
+const USER_TURN_RE = /\*\*Me\*\*:\s*([\s\S]*?)(?=\n\*\*|\n---|(?![\s\S]))/g;
 const SUMMARY_RE = /^\*Summary:([\s\S]*?)\*\s*$/m;
 const H1_DATE_RE = /^#\s+(.+)$/m;
 
@@ -68,7 +68,7 @@ function parseNewEntry(block: string): RawEntry | null {
 
   if (!textParts.length) {
     let after = block.slice(h3.index + h3[0].length).trim();
-    after = after.replace(/^####\s+Tags\b[\s\S]*?(?=^####\s|\Z)/m, "").trim();
+    after = after.replace(/^####\s+Tags\b[\s\S]*?(?=^####\s|(?![\s\S]))/m, "").trim();
     if (after) textParts.push(after);
   }
 

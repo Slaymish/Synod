@@ -5,7 +5,7 @@
  * Open latest bulletin.
  */
 
-import { App, ItemView, Notice, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
+import { ItemView, Notice, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
 
 import type { Store } from "../storage/store";
 import type { PromptStore } from "../prompts";
