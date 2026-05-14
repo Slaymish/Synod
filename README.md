@@ -1,5 +1,7 @@
 # Synod
 
+Repository: <https://github.com/Slaymish/Synod>
+
 A council of LLM "value agents" reads your journal, surfaces tensions you
 haven't resolved, and never suggests compromises. Runs entirely inside
 Obsidian; LLMs are reached via local Ollama, OpenRouter, or any

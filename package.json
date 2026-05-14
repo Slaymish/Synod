@@ -10,8 +10,16 @@
     "test": "esbuild tests/smoke.ts --bundle --platform=node --target=node18 --outfile=tests/smoke.cjs --format=cjs --external:obsidian --log-level=warning && node tests/smoke.cjs"
   },
   "keywords": [],
-  "author": "",
+  "author": "Hamish",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Slaymish/Synod.git"
+  },
+  "homepage": "https://github.com/Slaymish/Synod",
+  "bugs": {
+    "url": "https://github.com/Slaymish/Synod/issues"
+  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "builtin-modules": "^4.0.0",

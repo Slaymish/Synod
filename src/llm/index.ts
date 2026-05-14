@@ -84,7 +84,7 @@ async function dispatch(
         user,
         temperature: opts.temperature,
         extraHeaders: {
-          "HTTP-Referer": "https://github.com/synod",
+          "HTTP-Referer": "https://github.com/Slaymish/Synod",
           "X-Title": "Synod",
         },
         signal: opts.signal,
