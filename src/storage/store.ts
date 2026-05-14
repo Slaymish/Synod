@@ -1,0 +1,167 @@
+/* JSON-backed store. Wraps Plugin.loadData() / saveData(). All mutations go
+ * through here so we have one place to invalidate caches and notify the UI.
+ *
+ * The DataFile lives in `<vault>/.obsidian/plugins/synod/data.json`. Settings
+ * live in the same file under a `settings` key (Obsidian convention).
+ */
+
+import type { Plugin } from "obsidian";
+
+import type { Entry } from "../ingestion/types";
+import { DEFAULT_SETTINGS, SynodSettings } from "../settings";
+import { EMPTY_DATA, DataFile, PipelineStatus, StoredDecisionPacket, StoredValueReport, Value } from "./types";
+
+interface PersistShape {
+  settings: SynodSettings;
+  data: DataFile;
+}
+
+type StatusListener = (s: PipelineStatus) => void;
+
+export class Store {
+  private plugin: Plugin;
+  private cache: PersistShape;
+  private statusListeners = new Set<StatusListener>();
+
+  private constructor(plugin: Plugin, cache: PersistShape) {
+    this.plugin = plugin;
+    this.cache = cache;
+  }
+
+  static async open(plugin: Plugin): Promise<Store> {
+    const raw = ((await plugin.loadData()) ?? {}) as Partial<PersistShape>;
+    const cache: PersistShape = {
+      settings: { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}) },
+      data: { ...EMPTY_DATA, ...(raw.data ?? {}) },
+    };
+    return new Store(plugin, cache);
+  }
+
+  // ── Settings ──
+  get settings(): SynodSettings {
+    return this.cache.settings;
+  }
+
+  async updateSettings(patch: Partial<SynodSettings>): Promise<void> {
+    this.cache.settings = { ...this.cache.settings, ...patch };
+    await this.persist();
+  }
+
+  // ── Entries ──
+  get entries(): Entry[] {
+    return Object.values(this.cache.data.entries);
+  }
+
+  async addEntries(entries: Entry[]): Promise<{ added: number; duplicates: number }> {
+    let added = 0;
+    let duplicates = 0;
+    for (const e of entries) {
+      if (this.cache.data.entries[e.id]) {
+        duplicates++;
+      } else {
+        this.cache.data.entries[e.id] = e;
+        added++;
+      }
+    }
+    if (added) await this.persist();
+    return { added, duplicates };
+  }
+
+  entriesInRange(startIso: string, endIso: string): Entry[] {
+    const s = startIso, e = endIso;
+    return this.entries
+      .filter((x) => x.written_at >= s && x.written_at <= e)
+      .sort((a, b) => a.written_at.localeCompare(b.written_at));
+  }
+
+  recentEntries(limit: number): Entry[] {
+    return this.entries
+      .slice()
+      .sort((a, b) => b.written_at.localeCompare(a.written_at))
+      .slice(0, limit);
+  }
+
+  // ── Values ──
+  get values(): Value[] {
+    return Object.values(this.cache.data.values).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  activeValues(): Value[] {
+    return this.values.filter((v) => v.active);
+  }
+
+  async upsertValue(v: Value): Promise<void> {
+    this.cache.data.values[v.id] = v;
+    await this.persist();
+  }
+
+  async setValueActive(id: string, active: boolean): Promise<void> {
+    const v = this.cache.data.values[id];
+    if (!v) return;
+    v.active = active;
+    await this.persist();
+  }
+
+  async deleteValue(id: string): Promise<void> {
+    delete this.cache.data.values[id];
+    await this.persist();
+  }
+
+  // ── Reports / packets ──
+  async saveReport(r: StoredValueReport): Promise<void> {
+    const idx = this.cache.data.reports.findIndex((x) => x.id === r.id);
+    if (idx >= 0) this.cache.data.reports[idx] = r;
+    else this.cache.data.reports.push(r);
+    await this.persist();
+  }
+
+  async savePacket(p: StoredDecisionPacket): Promise<void> {
+    this.cache.data.packets.push(p);
+    await this.persist();
+  }
+
+  get packets(): StoredDecisionPacket[] {
+    return this.cache.data.packets;
+  }
+
+  latestPacket(): StoredDecisionPacket | null {
+    return this.packets.length ? this.packets[this.packets.length - 1] : null;
+  }
+
+  // ── Scheduler bookkeeping ──
+  lastRunFor(jobId: string): string | null {
+    return this.cache.data.lastRun[jobId] ?? null;
+  }
+
+  async markRun(jobId: string): Promise<void> {
+    this.cache.data.lastRun[jobId] = new Date().toISOString();
+    await this.persist();
+  }
+
+  // ── Status (in-memory + persisted snapshot for status view restore) ──
+  get status(): PipelineStatus {
+    return this.cache.data.status;
+  }
+
+  async setStatus(patch: Partial<PipelineStatus>): Promise<void> {
+    this.cache.data.status = { ...this.cache.data.status, ...patch };
+    for (const l of this.statusListeners) {
+      try {
+        l(this.cache.data.status);
+      } catch {
+        /* noop */
+      }
+    }
+    await this.persist();
+  }
+
+  onStatus(fn: StatusListener): () => void {
+    this.statusListeners.add(fn);
+    return () => this.statusListeners.delete(fn);
+  }
+
+  // ── Internals ──
+  private async persist(): Promise<void> {
+    await this.plugin.saveData(this.cache);
+  }
+}

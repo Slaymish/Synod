@@ -1,0 +1,104 @@
+/* Synod plugin styles. Uses Obsidian's CSS variables so it adapts to the
+ * active theme. No hardcoded colours. The progress bar reads its width from
+ * a custom property the view sets dynamically (--synod-progress).
+ */
+
+.synod-view {
+  padding: 0 1em 1em 1em;
+}
+
+.synod-title {
+  font-size: var(--font-ui-large);
+  font-weight: 600;
+  margin: 0.6em 0 0.8em;
+}
+.synod-section-label {
+  font-size: var(--font-ui-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 1em 0 0.4em;
+}
+
+.synod-status-box {
+  background: var(--background-secondary);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.synod-phase {
+  font-weight: 600;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+}
+.synod-phase-error    { color: var(--text-error); }
+.synod-phase-done     { color: var(--text-success, var(--text-accent)); }
+.synod-phase-agents,
+.synod-phase-extracting,
+.synod-phase-compiling,
+.synod-phase-writing   { color: var(--text-accent); }
+
+.synod-detail { font-size: 0.9em; color: var(--text-muted); margin-bottom: 6px; }
+
+.synod-progress {
+  background: var(--background-modifier-border);
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+  margin: 6px 0 4px;
+}
+.synod-progress-fill {
+  background: var(--color-accent);
+  height: 100%;
+  width: var(--synod-progress, 0%);
+  transition: width 200ms ease-in-out;
+}
+.synod-progress-text { font-size: 0.78em; color: var(--text-muted); }
+.synod-error { color: var(--text-error); margin-top: 6px; font-size: 0.9em; }
+
+.synod-counts {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.synod-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.synod-actions button { width: 100%; }
+
+.synod-log {
+  font-family: var(--font-monospace);
+  font-size: 0.78em;
+  background: var(--background-secondary);
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.synod-log-line  { padding: 1px 0; white-space: pre-wrap; }
+.synod-log-ts    { color: var(--text-faint); }
+.synod-log-warn  { color: var(--text-warning, var(--text-accent)); }
+.synod-log-error { color: var(--text-error); }
+
+.synod-candidate {
+  border-left: 3px solid var(--color-accent);
+  padding: 8px 12px;
+  margin: 10px 0;
+  background: var(--background-secondary);
+  border-radius: 0 6px 6px 0;
+}
+.synod-candidate-header { display: flex; align-items: center; gap: 6px; }
+.synod-candidate-title  { font-weight: 600; }
+.synod-evidence {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.synod-definition-input { width: 100%; }
