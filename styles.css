@@ -159,3 +159,35 @@
   color: var(--text-muted);
   margin: 0 0 10px;
 }
+
+.synod-cancel-button {
+  margin-top: 8px;
+  background: var(--background-modifier-error, var(--background-secondary));
+  color: var(--text-on-accent, var(--text-normal));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+.synod-cancel-button:hover {
+  filter: brightness(1.1);
+}
+
+.synod-bulletin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.synod-bulletin-row {
+  font-size: 0.9em;
+}
+.synod-bulletin-link {
+  color: var(--text-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.synod-bulletin-link:hover {
+  text-decoration: underline;
+}

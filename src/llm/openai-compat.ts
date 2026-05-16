@@ -3,6 +3,8 @@
 
 import { requestUrl } from "obsidian";
 
+import { LlmHttpError, LlmNetworkError } from "./errors";
+
 interface OpenAIOpts {
   baseUrl: string;       // e.g. https://openrouter.ai/api/v1
   apiKey: string;
@@ -30,15 +32,22 @@ export async function callOpenAICompat(opts: OpenAIOpts): Promise<string> {
     ...opts.extraHeaders,
   };
 
-  const resp = await requestUrl({
-    url: `${opts.baseUrl.replace(/\/$/, "")}/chat/completions`,
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    throw: false,
-  });
+  let resp;
+  try {
+    resp = await requestUrl({
+      url: `${opts.baseUrl.replace(/\/$/, "")}/chat/completions`,
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      throw: false,
+    });
+  } catch (e) {
+    // requestUrl throws on transport failure (DNS, refused, offline).
+    throw new LlmNetworkError(`LLM endpoint unreachable: ${(e as Error).message}`);
+  }
+
   if (resp.status >= 400) {
-    throw new Error(`LLM HTTP ${resp.status}: ${resp.text.slice(0, 300)}`);
+    throw new LlmHttpError(`LLM HTTP ${resp.status}: ${resp.text.slice(0, 300)}`, resp.status);
   }
   const json = resp.json as {
     choices?: { message?: { content?: string } }[];

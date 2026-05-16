@@ -14,6 +14,7 @@ import type { LlmFn } from "../llm";
 import type { Observation, Recommendation, ValueAgentInput, ValueReport } from "./types";
 import { fill, PromptStore } from "../prompts";
 import { packEntries } from "../util/text-packing";
+import { isCancelError, throwIfAborted } from "../util/cancel";
 import { log } from "../util/log";
 import { shortDate } from "../util/time";
 import { parseLooseJson } from "./json";
@@ -75,6 +76,7 @@ function aggregate(parts: BatchPart[]): {
 
 export interface ValueAgentOpts {
   maxCharsPerCall: number;
+  signal?: AbortSignal;
 }
 
 export async function runValueAgent(
@@ -102,6 +104,7 @@ export async function runValueAgent(
 
   const parts: BatchPart[] = [];
   for (let i = 0; i < batches.length; i++) {
+    throwIfAborted(opts.signal, `value-agent '${input.value_name}' batch ${i + 1}`);
     const batch = batches[i];
     if (!batch.length) continue;
     const note = batches.length === 1
@@ -111,9 +114,10 @@ export async function runValueAgent(
     const user = `Period: ${input.period_start} to ${input.period_end}${note}\n\n` +
       `Journal entries:\n${batch.join("\n\n---\n\n")}`;
     try {
-      const raw = await llm(system, user, { expectJson: true });
+      const raw = await llm(system, user, { expectJson: true, signal: opts.signal });
       parts.push(parseLooseJson(raw) as BatchPart);
     } catch (e) {
+      if (isCancelError(e)) throw e;
       log.warn(`Value-agent batch ${i + 1}/${batches.length} failed: ${(e as Error).message}`);
     }
   }

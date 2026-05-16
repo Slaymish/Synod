@@ -1,34 +1,41 @@
 /* Status view — the answer to "what is Synod doing right now?".
  *
  * Shows live pipeline phase, progress bar, last-run timestamp, recent log
- * lines, plus the four primary actions: Import, Discover values, Run cycle,
- * Open latest bulletin. The counts panel auto-refreshes whenever the store's
- * underlying data changes (no need to poke another button).
+ * lines, the four primary actions (Import, Discover values, Run cycle,
+ * Open latest bulletin), plus a Cancel button while a cycle is in flight
+ * and a list of recent bulletins. The counts panel auto-refreshes whenever
+ * the store's underlying data changes (no need to poke another button).
  */
 
 import { ItemView, Notice, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
 
+import type SynodPlugin from "../main";
 import type { Store } from "../storage/store";
 import type { PromptStore } from "../prompts";
-import { discoverValues, runFullCycle } from "../pipeline";
+import { discoverValues } from "../pipeline";
 import { LogEntry, subscribe } from "../util/log";
 import { CandidateValueModal } from "./candidate-modal";
 import { ImportModal } from "./import-modal";
 
 export const SYNOD_VIEW_TYPE = "synod-status-view";
 
+const RECENT_BULLETINS_MAX = 5;
+
 export class SynodStatusView extends ItemView {
+  private plugin: SynodPlugin;
   private store: Store;
   private prompts: PromptStore;
   private unsubStatus: (() => void) | null = null;
   private unsubData: (() => void) | null = null;
   private unsubLog: (() => void) | null = null;
+  private unsubRun: (() => void) | null = null;
   private logBuffer: LogEntry[] = [];
 
-  constructor(leaf: WorkspaceLeaf, store: Store, prompts: PromptStore) {
+  constructor(leaf: WorkspaceLeaf, plugin: SynodPlugin) {
     super(leaf);
-    this.store = store;
-    this.prompts = prompts;
+    this.plugin = plugin;
+    this.store = plugin.store;
+    this.prompts = plugin.prompts;
   }
 
   getViewType(): string {
@@ -50,6 +57,7 @@ export class SynodStatusView extends ItemView {
     // counts panel updates immediately after an import or value confirm,
     // not just after the next button press.
     this.unsubData = this.store.onDataChange(() => this.render());
+    this.unsubRun = this.plugin.onRunStateChange(() => this.render());
     this.unsubLog = subscribe((entry) => {
       this.logBuffer.push(entry);
       if (this.logBuffer.length > 50) this.logBuffer.shift();
@@ -61,6 +69,7 @@ export class SynodStatusView extends ItemView {
     this.unsubStatus?.();
     this.unsubData?.();
     this.unsubLog?.();
+    this.unsubRun?.();
   }
 
   private render(): void {
@@ -140,6 +149,17 @@ export class SynodStatusView extends ItemView {
     if (status.error) {
       statusBox.createEl("div", { text: `Error: ${status.error}`, cls: "synod-error" });
     }
+    if (this.plugin.isRunning()) {
+      const cancelBtn = statusBox.createEl("button", {
+        text: "Cancel run",
+        cls: "synod-cancel-button",
+      });
+      cancelBtn.setAttr(
+        "title",
+        "Stop the run at the next checkpoint. The current model call cannot be aborted mid-flight.",
+      );
+      cancelBtn.onclick = () => this.plugin.cancelBulletinRun();
+    }
 
     // ── Counts block ──
     const counts = root.createDiv({ cls: "synod-counts" });
@@ -183,18 +203,14 @@ export class SynodStatusView extends ItemView {
       "title",
       "Each active value gets its own agent. The compiler surfaces tensions between them and writes a bulletin to your vault.",
     );
-    runBtn.onclick = async () => {
-      if (!this.store.activeValues().length) {
-        new Notice("Confirm at least one value first (step 2).");
-        return;
-      }
-      try {
-        const days = Math.max(1, Math.round(this.store.settings.schedule.bulletinIntervalHours / 24));
-        const { bulletinPath } = await runFullCycle(this.app, this.store, this.prompts, days);
-        new Notice(`Bulletin written to ${bulletinPath}`);
-      } catch (e) {
-        new Notice(`Bulletin run failed: ${(e as Error).message}`);
-      }
+    if (this.plugin.isRunning()) {
+      runBtn.setAttr("disabled", "true");
+      runBtn.setText("3. Run bulletin cycle (running…)");
+    }
+    runBtn.onclick = () => {
+      // Notices and validation live inside startBulletinRun(); ignore the
+      // returned promise here so a long run doesn't block the click handler.
+      void this.plugin.startBulletinRun();
     };
 
     const openBtn = actions.createEl("button", { text: "Open latest bulletin" });
@@ -212,10 +228,40 @@ export class SynodStatusView extends ItemView {
       else new Notice(`File not found: ${path}`);
     };
 
+    // ── Recent bulletins ──
+    this.renderRecentBulletins(root);
+
     // ── Log block ──
     root.createDiv({ cls: "synod-section-label", text: "Recent log" });
     root.createDiv({ cls: "synod-log", attr: { id: "synod-log" } });
     this.renderLog();
+  }
+
+  private renderRecentBulletins(root: HTMLElement): void {
+    const folderPath = normalizePath(
+      `${this.store.settings.output.rootFolder}/Bulletins`,
+    );
+    const files = this.app.vault
+      .getFiles()
+      .filter((f) => f.path.startsWith(`${folderPath}/`) && f.extension === "md")
+      .sort((a, b) => b.basename.localeCompare(a.basename))
+      .slice(0, RECENT_BULLETINS_MAX);
+    if (!files.length) return;
+
+    root.createDiv({ cls: "synod-section-label", text: "Recent bulletins" });
+    const list = root.createDiv({ cls: "synod-bulletin-list" });
+    for (const f of files) {
+      const row = list.createDiv({ cls: "synod-bulletin-row" });
+      const link = row.createEl("a", {
+        cls: "synod-bulletin-link",
+        text: f.basename,
+      });
+      link.setAttr("href", "#");
+      link.onclick = (e) => {
+        e.preventDefault();
+        void this.app.workspace.getLeaf(false).openFile(f);
+      };
+    }
   }
 
   private renderLog(): void {

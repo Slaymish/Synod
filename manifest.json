@@ -1,7 +1,7 @@
 {
   "id": "synod",
   "name": "Synod",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "minAppVersion": "1.7.2",
   "description": "A council of LLM agents reads your journal, surfaces the tensions you haven't resolved, and refuses to suggest a compromise. Local-first via Ollama, OpenRouter, or any OpenAI-compatible endpoint.",
   "author": "Hamish",

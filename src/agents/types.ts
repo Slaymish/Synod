@@ -58,6 +58,11 @@ export interface MinorityReport {
   self_score: number | null;
 }
 
+export interface OpenQuestionGroup {
+  value_name: string;
+  questions: string[];
+}
+
 export interface DecisionPacket {
   packet_id: string;
   period_start: string;
@@ -67,6 +72,9 @@ export interface DecisionPacket {
   unanimous_recommendations: Recommendation[];
   tensions_for_user: Tension[];
   minority_reports: MinorityReport[];
+  /** Per-value open questions surfaced by the value agents. May be absent on
+   *  packets persisted before v0.2.0. */
+  open_questions?: OpenQuestionGroup[];
   reopen_conditions: string[];
 }
 

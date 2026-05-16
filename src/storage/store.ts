@@ -37,6 +37,27 @@ export class Store {
       settings,
       data: { ...EMPTY_DATA, ...(raw.data ?? {}) },
     };
+    // If the previous Obsidian session was killed mid-run, the persisted
+    // status will still claim the pipeline is active. Recover by surfacing
+    // an interrupted-state message rather than misleading the user.
+    const interruptedPhases: PipelineStatus["phase"][] = [
+      "ingesting",
+      "extracting",
+      "agents",
+      "compiling",
+      "writing",
+    ];
+    if (interruptedPhases.includes(cache.data.status.phase)) {
+      const where = cache.data.status.phase;
+      cache.data.status = {
+        ...cache.data.status,
+        phase: "error",
+        detail: `Last run was interrupted during ${where}.`,
+        error: "Interrupted",
+        progress: null,
+        finishedAt: new Date().toISOString(),
+      };
+    }
     return new Store(plugin, cache);
   }
 

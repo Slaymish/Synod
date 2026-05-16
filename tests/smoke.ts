@@ -11,6 +11,10 @@ import { parseRosebud } from "../src/importers/rosebud";
 import { contentHash, normaliseText } from "../src/ingestion/dedup";
 import { packEntries, chunkOversized } from "../src/util/text-packing";
 import { parseLooseJson } from "../src/agents/json";
+import { CancelError, isCancelError, throwIfAborted } from "../src/util/cancel";
+import { isTransientLlmError, LlmHttpError, LlmNetworkError } from "../src/llm/errors";
+import { renderBulletin } from "../src/output/bulletin";
+import type { DecisionPacket } from "../src/agents/types";
 
 let failed = 0;
 function ok(name: string, cond: unknown, detail?: string) {
@@ -75,6 +79,65 @@ async function main() {
   ));
   ok("rosebud old-format yields ≥1 entry", oldEntries.length >= 1,
     `got ${oldEntries.length}`);
+
+  // ── Cancellation primitives ──
+  ok("isCancelError detects CancelError instance",
+    isCancelError(new CancelError()) === true);
+  ok("isCancelError rejects regular Error",
+    isCancelError(new Error("nope")) === false);
+  const ac = new AbortController();
+  ac.abort();
+  let threw: unknown = null;
+  try {
+    throwIfAborted(ac.signal, "test");
+  } catch (e) {
+    threw = e;
+  }
+  ok("throwIfAborted throws on aborted signal", isCancelError(threw));
+  let didNotThrow = true;
+  try {
+    throwIfAborted(new AbortController().signal, "test");
+  } catch {
+    didNotThrow = false;
+  }
+  ok("throwIfAborted is a no-op on un-aborted signal", didNotThrow);
+
+  // ── LLM transient-error classification ──
+  ok("HTTP 503 is transient", isTransientLlmError(new LlmHttpError("x", 503)));
+  ok("HTTP 500 is transient", isTransientLlmError(new LlmHttpError("x", 500)));
+  ok("HTTP 401 is NOT transient", !isTransientLlmError(new LlmHttpError("x", 401)));
+  ok("HTTP 404 is NOT transient", !isTransientLlmError(new LlmHttpError("x", 404)));
+  ok("network error is transient", isTransientLlmError(new LlmNetworkError("offline")));
+  ok("vanilla Error is NOT transient", !isTransientLlmError(new Error("bad json")));
+
+  // ── Bulletin renderer surfaces open questions ──
+  const packet: DecisionPacket = {
+    packet_id: "p1",
+    period_start: "2025-01-01T00:00:00.000Z",
+    period_end: "2025-01-07T00:00:00.000Z",
+    summary: "test",
+    consolidated_observations: [],
+    unanimous_recommendations: [],
+    tensions_for_user: [],
+    minority_reports: [],
+    open_questions: [
+      { value_name: "Honesty", questions: ["Why did I dodge that conversation on Thursday?"] },
+      { value_name: "Family", questions: ["Is weekly dinner sustainable next quarter?"] },
+    ],
+    reopen_conditions: [],
+  };
+  const md = renderBulletin(packet);
+  ok("bulletin includes 'Open questions' heading", md.includes("## Open questions"));
+  ok("bulletin includes per-value question",
+    md.includes("Why did I dodge that conversation on Thursday?"));
+  ok("bulletin labels questions by value name",
+    md.includes("**Honesty**") && md.includes("**Family**"));
+
+  // Packet with no open_questions field (back-compat) must still render.
+  const oldPacket: DecisionPacket = { ...packet, open_questions: undefined };
+  const oldMd = renderBulletin(oldPacket);
+  ok("bulletin renders without open_questions field",
+    !oldMd.includes("## Open questions"));
 
   if (failed) {
     console.error(`\n${failed} test(s) failed.`);

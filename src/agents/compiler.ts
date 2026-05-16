@@ -15,11 +15,13 @@ import type { LlmFn } from "../llm";
 import type {
   DecisionPacket,
   Observation,
+  OpenQuestionGroup,
   Recommendation,
   Tension,
   ValueReport,
 } from "./types";
 import type { PromptStore } from "../prompts";
+import { isCancelError } from "../util/cancel";
 import { log, uuid } from "../util/log";
 import { parseLooseJson } from "./json";
 
@@ -35,6 +37,7 @@ async function runReportValidator(
   reports: ValueReport[],
   compiler: LlmFn,
   prompts: PromptStore,
+  signal?: AbortSignal,
 ): Promise<ValidationRecord[]> {
   if (!reports.length) return [];
   const system = await prompts.load("compiler_report_validator");
@@ -48,10 +51,12 @@ async function runReportValidator(
   try {
     const raw = await compiler(system, `ValueReports:\n${JSON.stringify(payload, null, 2)}`, {
       expectJson: true,
+      signal,
     });
     const data = parseLooseJson(raw) as { validations?: ValidationRecord[] };
     return data.validations ?? [];
   } catch (e) {
+    if (isCancelError(e)) throw e;
     log.warn(`Report validator failed: ${(e as Error).message} — passing all reports`);
     return reports.map((r) => ({
       value_id: r.value_id,
@@ -113,10 +118,12 @@ async function runFinder(
   reports: ValueReport[],
   agent: LlmFn,
   prompts: PromptStore,
+  signal?: AbortSignal,
 ): Promise<FinderResult> {
   const system = await prompts.load("compiler_finder");
   const raw = await agent(system, `ValueReports:\n${JSON.stringify(reports, null, 2)}`, {
     expectJson: true,
+    signal,
   });
   return parseLooseJson(raw) as FinderResult;
 }
@@ -141,11 +148,13 @@ async function runTensionValidator(
   candidates: RawCandidateTension[],
   compiler: LlmFn,
   prompts: PromptStore,
+  signal?: AbortSignal,
 ): Promise<ValidatedTension[]> {
   if (!candidates.length) return [];
   const system = await prompts.load("compiler_validator");
   const raw = await compiler(system, `Candidate tensions:\n${JSON.stringify(candidates, null, 2)}`, {
     expectJson: true,
+    signal,
   });
   const data = parseLooseJson(raw) as { validated_tensions?: ValidatedTension[] };
   return (data.validated_tensions ?? []).filter((t) => t.is_real);
@@ -177,14 +186,15 @@ export async function compileReports(
   agent: LlmFn,
   compiler: LlmFn,
   prompts: PromptStore,
+  signal?: AbortSignal,
 ): Promise<DecisionPacket> {
   // Pass 0
-  const validations = await runReportValidator(reports, compiler, prompts);
+  const validations = await runReportValidator(reports, compiler, prompts, signal);
   const { kept, records } = applyValidations(reports, validations);
 
   // Pass 1 + 2
-  const finderResult = await runFinder(kept, agent, prompts);
-  const validated = await runTensionValidator(finderResult.candidate_tensions ?? [], compiler, prompts);
+  const finderResult = await runFinder(kept, agent, prompts, signal);
+  const validated = await runTensionValidator(finderResult.candidate_tensions ?? [], compiler, prompts, signal);
 
   const tensions: Tension[] = validated.map((t) => {
     const aName = t.value_a_name;
@@ -226,6 +236,23 @@ export async function compileReports(
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  const openQuestions: OpenQuestionGroup[] = kept
+    .map((r) => {
+      const qs = (r.open_questions ?? []).map((q) => q.trim()).filter(Boolean);
+      if (!qs.length) return null;
+      // Dedupe within a single value's questions while preserving order.
+      const seen = new Set<string>();
+      const unique: string[] = [];
+      for (const q of qs) {
+        const key = q.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(q);
+      }
+      return { value_name: r.value_name, questions: unique };
+    })
+    .filter((g): g is OpenQuestionGroup => g !== null);
+
   const nFailed = records.filter((v) => !v.passed).length;
   const summary = `Compiled ${kept.length} value reports (${nFailed} dropped at validation). ${tensions.length} tensions surfaced.`;
 
@@ -238,6 +265,7 @@ export async function compileReports(
     unanimous_recommendations: unanimous,
     tensions_for_user: tensions,
     minority_reports: minorityReports,
+    open_questions: openQuestions,
     reopen_conditions: tensions.map((t) => t.would_resolve),
   };
 }

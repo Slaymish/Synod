@@ -112,5 +112,16 @@ export function renderBulletin(packet: DecisionPacket): string {
     }
   }
 
+  // 5. Open questions surfaced by the value agents
+  const openGroups = (packet.open_questions ?? []).filter((g) => g.questions.length);
+  if (openGroups.length) {
+    sections.push("## Open questions", "");
+    for (const g of openGroups) {
+      sections.push(`**${g.value_name}**`);
+      for (const q of g.questions) sections.push(`- ${q}`);
+      sections.push("");
+    }
+  }
+
   return sections.join("\n");
 }

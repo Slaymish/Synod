@@ -25,8 +25,9 @@ If that sounds like something you'd want a longer answer to, the bulletins do th
 - **Per-value agents** — every confirmed value gets its own agent run with its own system prompt, never seeing the others' output.
 - **A compiler** that runs three independent passes (evidentiary gate → tension finder → tension validator) before anything is written to disk.
 - **Bulletins in your vault** — plain markdown, one per period, sitting alongside your other notes. Backlinkable, gitable, yours.
-- **A status panel** — live phase, progress bar, recent log, four big buttons. Nothing hidden in a command palette.
+- **A status panel** — live phase, progress bar, recent bulletins list, recent log, four big buttons, plus a cancel button while a run is in flight. Nothing hidden in a command palette.
 - **Editable prompts** — every agent's system prompt is a markdown file in your vault. Change them; the next run picks it up.
+- **Resilient runs** — transient backend hiccups (network blips, HTTP 5xx) are retried automatically with backoff. A run can be cancelled at any cooperative checkpoint. If Obsidian quits mid-run, the next launch surfaces the interrupted state instead of pretending the pipeline is still going.
 
 ```diagram
 ╭─────────────────────╮     ╭──────────────────╮     ╭────────────────╮

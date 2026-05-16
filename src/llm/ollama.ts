@@ -6,6 +6,8 @@
 
 import { requestUrl } from "obsidian";
 
+import { LlmHttpError, LlmNetworkError } from "./errors";
+
 interface OllamaOpts {
   baseUrl: string;
   model: string;
@@ -30,15 +32,22 @@ export async function callOllama(opts: OllamaOpts): Promise<string> {
   };
   if (opts.format) body.format = opts.format;
 
-  const resp = await requestUrl({
-    url: `${opts.baseUrl.replace(/\/$/, "")}/api/chat`,
-    method: "POST",
-    contentType: "application/json",
-    body: JSON.stringify(body),
-    throw: false,
-  });
+  let resp;
+  try {
+    resp = await requestUrl({
+      url: `${opts.baseUrl.replace(/\/$/, "")}/api/chat`,
+      method: "POST",
+      contentType: "application/json",
+      body: JSON.stringify(body),
+      throw: false,
+    });
+  } catch (e) {
+    // requestUrl throws on transport failure (DNS, refused, offline).
+    throw new LlmNetworkError(`Ollama unreachable: ${(e as Error).message}`);
+  }
+
   if (resp.status >= 400) {
-    throw new Error(`Ollama HTTP ${resp.status}: ${resp.text.slice(0, 300)}`);
+    throw new LlmHttpError(`Ollama HTTP ${resp.status}: ${resp.text.slice(0, 300)}`, resp.status);
   }
   // /api/chat returns { message: { role, content }, done, ... }
   const json = resp.json as { message?: { content?: string }; error?: string };

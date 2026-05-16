@@ -15,6 +15,7 @@ import type { PromptStore } from "../prompts";
 import type { DecisionPacket, ValueAgentInput, ValueReport } from "./types";
 
 import { compileReports } from "./compiler";
+import { throwIfAborted } from "../util/cancel";
 import { log } from "../util/log";
 import { runValueAgent } from "./value-agent";
 
@@ -25,6 +26,8 @@ export interface RunOpts {
   agentMaxCharsPerCall: number;
   /** Status reporter for UI updates between phases. Optional. */
   onProgress?: (phase: string, current: number, total: number, detail: string) => void;
+  /** Cooperative cancellation signal. */
+  signal?: AbortSignal;
 }
 
 export async function runBulletinCycle(
@@ -53,6 +56,7 @@ export async function runBulletinCycle(
   let done = 0;
   const tasks = values.map((v) =>
     (async () => {
+      throwIfAborted(opts.signal, `value-agent '${v.name}' start`);
       const input: ValueAgentInput = {
         value_id: v.id,
         value_name: v.name,
@@ -63,6 +67,7 @@ export async function runBulletinCycle(
       };
       const report = await runValueAgent(input, opts.agent, opts.prompts, {
         maxCharsPerCall: opts.agentMaxCharsPerCall,
+        signal: opts.signal,
       });
       // Persist
       await store.saveReport({
@@ -82,8 +87,17 @@ export async function runBulletinCycle(
   for (const r of await Promise.all(tasks)) reports.push(r);
 
   // Compile
+  throwIfAborted(opts.signal, "compile phase");
   opts.onProgress?.("compiling", 0, 1, "Validating reports + finding tensions");
-  const packet = await compileReports(reports, periodStart, periodEnd, opts.agent, opts.compiler, opts.prompts);
+  const packet = await compileReports(
+    reports,
+    periodStart,
+    periodEnd,
+    opts.agent,
+    opts.compiler,
+    opts.prompts,
+    opts.signal,
+  );
   await store.savePacket({
     id: packet.packet_id,
     period_start: periodStart,

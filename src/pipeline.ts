@@ -12,8 +12,13 @@ import { getLlm } from "./llm";
 import { isoMinusDays, nowIso } from "./util/time";
 import { runBulletinCycle } from "./agents/parent";
 import { writeBulletin, writeEntryFile, writeValueFile } from "./output/files";
+import { isCancelError } from "./util/cancel";
 import { log } from "./util/log";
 import type { DecisionPacket } from "./agents/types";
+
+export interface RunFullCycleOpts {
+  signal?: AbortSignal;
+}
 
 interface PhaseHandlers {
   onPhase: (phase: string, detail: string) => void;
@@ -68,6 +73,7 @@ export async function runFullCycle(
   store: Store,
   prompts: PromptStore,
   periodDays: number,
+  runOpts: RunFullCycleOpts = {},
 ): Promise<RunResult> {
   const s = store.settings;
   const periodEnd = nowIso();
@@ -91,6 +97,7 @@ export async function runFullCycle(
       compiler,
       prompts,
       agentMaxCharsPerCall: s.budgets.valueAgentMaxCharsPerCall,
+      signal: runOpts.signal,
       onProgress: (phase, current, total, detail) =>
         void store.setStatus({
           phase: phase as never,
@@ -122,13 +129,25 @@ export async function runFullCycle(
     });
     return { packet, bulletinPath };
   } catch (e) {
-    log.error(`runFullCycle failed: ${(e as Error).message}`);
-    await store.setStatus({
-      phase: "error",
-      detail: (e as Error).message,
-      error: (e as Error).message,
-      finishedAt: nowIso(),
-    });
+    if (isCancelError(e)) {
+      log.warn(`runFullCycle cancelled: ${(e as Error).message}`);
+      await store.setStatus({
+        phase: "error",
+        detail: "Run cancelled by user.",
+        error: "Cancelled",
+        progress: null,
+        finishedAt: nowIso(),
+      });
+    } else {
+      log.error(`runFullCycle failed: ${(e as Error).message}`);
+      await store.setStatus({
+        phase: "error",
+        detail: (e as Error).message,
+        error: (e as Error).message,
+        progress: null,
+        finishedAt: nowIso(),
+      });
+    }
     throw e;
   }
 }
